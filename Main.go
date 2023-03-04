@@ -5,6 +5,7 @@ import (
 	"OrderService/repository"
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -23,7 +24,7 @@ func handleRequests() {
 	myRouter.HandleFunc("/api/v1/order", createNewOrder).Methods("POST")
 	// finally, instead of passing in nil, we want
 	// to pass in our newly created router as the second argument
-	log.Fatal(http.ListenAndServe(":8000", myRouter))
+	log.Fatal(http.ListenAndServe(":10000", myRouter))
 }
 
 func createNewOrder(w http.ResponseWriter, r *http.Request) {
@@ -34,16 +35,13 @@ func createNewOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	orderID, err := repository.SaveOrderToDynamoDB(request)
 	if err != nil {
-		log.Printf("failed to save order to DynamoDB: %v", err)
+		log.Fatal("error writting on dynamo db")
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
 	}
-	if err := repository.SendOrderSQSMessage(orderID, request.TotalPrice); err != nil {
-		log.Printf("failed to send order to SQS: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
+	repository.SendOrderSQSMessage(uuid.New().String(), request.TotalPrice)
+	fmt.Fprintf(w, "{\"added\":\"%s\"}", orderID)
 }
 func main() {
+	println("Order Service started")
 	handleRequests()
 }
